@@ -1,0 +1,8 @@
+{
+  "name": "vscode-webpack-dev-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/0xorial/vscode-webpack-dev-server.git",
+  "author": "0xorial <0xorial@gmail.com>",
+  "license": "MIT"
+}
