@@ -27,9 +27,13 @@ export function activate(context: vscode.ExtensionContext) {
         // let p;
         compiler.hooks.watchRun.tap("vscode-wds", () => {
             statusBarItem.text = `Compiling...`;
+            outputChannel.appendLine("Compiling...");
+
         });
 
         compiler.hooks.done.tap("vscode-wds", (stats: webpack.Stats) => {
+            const str = stats.toString();
+            outputChannel.appendLine(str);
             if (stats.compilation.errors.length !== 0) {
                 statusBarItem.text = `${
                     stats.compilation.errors.length
@@ -41,20 +45,11 @@ export function activate(context: vscode.ExtensionContext) {
                 } errors`;
                 statusBarItem.color = new vscode.ThemeColor("foreground");
             }
-
-            for (const e of stats.compilation.errors) {
-                outputChannel.appendLine(e);
-            }
         });
 
-        const log = require("webpack-log");
 
-        const logger = log({
-            name: "wds",
-            level: "info",
-            timestamp: true
-        });
-        devServerInstance = new devServer(compiler, {}, logger);
+
+        devServerInstance = new devServer(compiler);
         outputChannel.appendLine("about to listen...");
 
         devServerInstance.listen(8080, "localhost", (err: any) => {
