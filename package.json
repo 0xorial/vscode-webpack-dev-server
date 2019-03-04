@@ -14,6 +14,27 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
+		"configuration": {
+			"type": "object",
+			"title": "Webpack-dev-server configuration",
+			"properties": {
+				"vscode-wds.port": {
+					"type": "number",
+					"default": 8080,
+					"description": "Port to pass to webpack-dev-server."
+				},
+				"vscode-wds.host": {
+					"type": "string",
+					"default": "localhost",
+					"description": "Host to pass to dev-server"
+				},
+				"vscode-wds.configFileName": {
+					"type": "string",
+					"default": "webpack.config.js",
+					"description": "Webpack config file to use."
+				}
+			}
+		},
 		"commands": [
 			{
 				"command": "vscode-wds.startDevServer",

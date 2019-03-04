@@ -12,56 +12,67 @@ export function activate(context: vscode.ExtensionContext) {
     );
     statusBarItem.command = "vscode-wds.revealOutput";
 
-    function startWds(rootPath: string, cb: () => void) {
+    function startWds(rootPath: string, cb: (err: Error | undefined) => void) {
         outputChannel.show(true);
         isTransitioning = true;
 
-        const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
-        const webpack = requireLocalPkg(rootPath, "webpack");
-        const configPath = path.join(rootPath, "webpack.dev.config.js");
-        outputChannel.appendLine(`Opening file ${configPath}...`);
-        const config = require(configPath);
-        const compiler = webpack(config) as webpack.Compiler;
+        try {
+            const config = vscode.workspace.getConfiguration("vscode-wds");
+            const port = config.get<number>("port") || "8080";
+            const host = config.get<string>("host") || "localhost";
+            const configFileName =
+                config.get<string>("configFileName") || "webpack.config.js";
 
-        statusBarItem.show();
+            const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
+            const webpack = requireLocalPkg(rootPath, "webpack");
+            const configPath = path.join(rootPath, configFileName);
+            outputChannel.appendLine(`Opening file ${configPath}...`);
+            const webpackConfig = require(configPath);
+            const compiler = webpack(webpackConfig) as webpack.Compiler;
 
-        // let p;
-        compiler.hooks.watchRun.tap("vscode-wds", () => {
-            statusBarItem.text = `Compiling...`;
-            outputChannel.appendLine("Compiling...");
+            statusBarItem.show();
 
-        });
+            // let p;
+            compiler.hooks.watchRun.tap("vscode-wds", () => {
+                statusBarItem.text = `Compiling...`;
+                outputChannel.appendLine("Compiling...");
+            });
 
-        compiler.hooks.done.tap("vscode-wds", (stats: webpack.Stats) => {
-            const str = stats.toString();
-            outputChannel.appendLine(str);
-            if (stats.compilation.errors.length !== 0) {
-                statusBarItem.text = `${
-                    stats.compilation.errors.length
-                } errors`;
-                statusBarItem.color = new vscode.ThemeColor("errorForeground");
-            } else {
-                statusBarItem.text = `${
-                    stats.compilation.errors.length
-                } errors`;
-                statusBarItem.color = new vscode.ThemeColor("foreground");
-            }
-        });
+            compiler.hooks.done.tap("vscode-wds", (stats: webpack.Stats) => {
+                const str = stats.toString();
+                outputChannel.appendLine(str);
+                if (stats.compilation.errors.length !== 0) {
+                    statusBarItem.text = `${
+                        stats.compilation.errors.length
+                    } errors`;
+                    statusBarItem.color = new vscode.ThemeColor(
+                        "errorForeground"
+                    );
+                } else {
+                    statusBarItem.text = `${
+                        stats.compilation.errors.length
+                    } errors`;
+                    statusBarItem.color = new vscode.ThemeColor("foreground");
+                }
+            });
 
+            devServerInstance = new devServer(compiler);
+            outputChannel.appendLine("about to listen...");
 
-
-        devServerInstance = new devServer(compiler);
-        outputChannel.appendLine("about to listen...");
-
-        devServerInstance.listen(8080, "localhost", (err: any) => {
-            cb();
-            if (err) {
-                outputChannel.appendLine("listen error!");
-                throw err;
-            }
-            outputChannel.appendLine("listening!");
+            devServerInstance.listen(port, host, (err: any) => {
+                cb(err);
+                if (err) {
+                    outputChannel.appendLine("listen error!");
+                    throw err;
+                }
+                outputChannel.appendLine("listening!");
+                isTransitioning = false;
+            });
+        } catch (e) {
+            outputChannel.appendLine(JSON.stringify(e));
             isTransitioning = false;
-        });
+            cb(e);
+        }
     }
 
     const initCommand = vscode.commands.registerCommand(
@@ -95,8 +106,17 @@ export function activate(context: vscode.ExtensionContext) {
                     title: "Starting webpack-dev-server..."
                 },
                 () => {
-                    return new Promise(resolve => {
-                        startWds(rootPath, resolve);
+                    return new Promise((resolve, reject) => {
+                        startWds(rootPath, err => {
+                            if (err) {
+                                vscode.window.showErrorMessage(
+                                    "Could not start webpack-dev-server. See output window for details."
+                                );
+                                reject(err);
+                            } else {
+                                resolve();
+                            }
+                        });
                     });
                 }
             );
@@ -144,7 +164,8 @@ export function activate(context: vscode.ExtensionContext) {
         "vscode-wds.revealOutput",
         () => {
             outputChannel.show(true);
-        });
+        }
+    );
 
     context.subscriptions.push(initCommand);
     context.subscriptions.push(disposeCommand);
