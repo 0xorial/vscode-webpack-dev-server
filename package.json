@@ -22,6 +22,10 @@
 			{
 				"command": "vscode-wds.stopDevServer",
 				"title": "Stop webpack-dev-server"
+			},
+			{
+				"command": "vscode-wds.revealOutput",
+				"title": "Reveal output of webpack-dev-server"
 			}
 		]
 	},

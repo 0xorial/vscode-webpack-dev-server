@@ -10,6 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
     let statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left
     );
+    statusBarItem.command = "vscode-wds.revealOutput";
 
     function startWds(rootPath: string, cb: () => void) {
         outputChannel.show(true);
@@ -139,8 +140,15 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
+    const revealCommand = vscode.commands.registerCommand(
+        "vscode-wds.revealOutput",
+        () => {
+            outputChannel.show(true);
+        });
+
     context.subscriptions.push(initCommand);
     context.subscriptions.push(disposeCommand);
+    context.subscriptions.push(revealCommand);
 }
 
 // this method is called when your extension is deactivated
