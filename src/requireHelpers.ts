@@ -1,10 +1,8 @@
 
 import * as path from 'path';
 import * as resolve from 'resolve';
-import { window } from 'vscode';
-import {sync} from 'read-pkg-up';
-
-const outputChannel = window.createOutputChannel("Webpack");
+import { sync } from 'read-pkg-up';
+import { outputChannel } from './outputChannel';
 
 /**
  * Recursively search for a package.json upwards containing given package
@@ -37,7 +35,7 @@ function findPkg(fspath: string, pkgName: string): string | undefined {
  * @param {string} pkgName package's name to require
  * @returns module
  */
-function requireLocalPkg(fspath: string, pkgName: string): any {
+export function requireLocalPkg(fspath: string, pkgName: string): any {
     const modulePath = findPkg(fspath, pkgName);
     if (modulePath !== void 0) {
         try {
@@ -49,4 +47,3 @@ function requireLocalPkg(fspath: string, pkgName: string): any {
 
     return require(pkgName);
 }
-export { requireLocalPkg };

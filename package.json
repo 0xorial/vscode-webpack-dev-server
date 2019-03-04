@@ -10,14 +10,18 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:extension.helloWorld"
+		"onCommand:vscode-wds.startDevServer"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
+				"command": "vscode-wds.startDevServer",
+				"title": "Start webpack-dev-server"
+			},
+			{
+				"command": "vscode-wds.stopDevServer",
+				"title": "Stop webpack-dev-server"
 			}
 		]
 	},
@@ -33,9 +37,13 @@
 		"@types/node": "^10.12.21",
 		"@types/read-pkg-up": "^3.0.1",
 		"@types/resolve": "0.0.8",
+		"@types/webpack": "^4.4.25",
 		"read-pkg-up": "^4.0.0",
 		"tslint": "^5.12.1",
 		"typescript": "^3.3.1",
 		"vscode": "^1.1.28"
+	},
+	"dependencies": {
+		"webpack-log": "^2.0.0"
 	}
 }

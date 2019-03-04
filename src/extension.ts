@@ -1,26 +1,151 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import { requireLocalPkg } from "./requireHelpers";
+import * as path from "path";
+import { outputChannel } from "./outputChannel";
+import * as webpack from "webpack";
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+    let devServerInstance: any;
+    let isTransitioning = false;
+    let statusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Left
+    );
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-		console.log('Congratulations, your extension "webpack-dev-server" is now active!');
+    function startWds(rootPath: string, cb: () => void) {
+        outputChannel.show(true);
+        isTransitioning = true;
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('extension.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
+        const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
+        const webpack = requireLocalPkg(rootPath, "webpack");
+        const configPath = path.join(rootPath, "webpack.dev.config.js");
+        outputChannel.appendLine(`Opening file ${configPath}...`);
+        const config = require(configPath);
+        const compiler = webpack(config) as webpack.Compiler;
 
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World!');
-	});
+        statusBarItem.show();
 
-	context.subscriptions.push(disposable);
+        // let p;
+        compiler.hooks.watchRun.tap("vscode-wds", () => {
+            statusBarItem.text = `Compiling...`;
+        });
+
+        compiler.hooks.done.tap("vscode-wds", (stats: webpack.Stats) => {
+            if (stats.compilation.errors.length !== 0) {
+                statusBarItem.text = `${
+                    stats.compilation.errors.length
+                } errors`;
+                statusBarItem.color = new vscode.ThemeColor("errorForeground");
+            } else {
+                statusBarItem.text = `${
+                    stats.compilation.errors.length
+                } errors`;
+                statusBarItem.color = new vscode.ThemeColor("foreground");
+            }
+
+            for (const e of stats.compilation.errors) {
+                outputChannel.appendLine(e);
+            }
+        });
+
+        const log = require("webpack-log");
+
+        const logger = log({
+            name: "wds",
+            level: "info",
+            timestamp: true
+        });
+        devServerInstance = new devServer(compiler, {}, logger);
+        outputChannel.appendLine("about to listen...");
+
+        devServerInstance.listen(8080, "localhost", (err: any) => {
+            cb();
+            if (err) {
+                outputChannel.appendLine("listen error!");
+                throw err;
+            }
+            outputChannel.appendLine("listening!");
+            isTransitioning = false;
+        });
+    }
+
+    const initCommand = vscode.commands.registerCommand(
+        "vscode-wds.startDevServer",
+        () => {
+            if (isTransitioning) {
+                vscode.window.showInformationMessage(
+                    "Still doing something..."
+                );
+                outputChannel.show();
+                return;
+            }
+
+            if (devServerInstance) {
+                vscode.window.showInformationMessage("Already running");
+                outputChannel.show();
+                return;
+            }
+
+            const rootPath = vscode.workspace.rootPath;
+            if (rootPath === undefined) {
+                vscode.window.showInformationMessage(
+                    "Cannot locate workspace root. It is needed to resolve webpack-dev-server location."
+                );
+                return;
+            }
+
+            vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Window,
+                    title: "Starting webpack-dev-server..."
+                },
+                () => {
+                    return new Promise(resolve => {
+                        startWds(rootPath, resolve);
+                    });
+                }
+            );
+        }
+    );
+
+    const disposeCommand = vscode.commands.registerCommand(
+        "vscode-wds.stopDevServer",
+        () => {
+            if (isTransitioning) {
+                vscode.window.showInformationMessage(
+                    "Still doing something..."
+                );
+                outputChannel.show();
+                return;
+            }
+
+            if (!devServerInstance) {
+                vscode.window.showInformationMessage("Not running");
+                return;
+            }
+            isTransitioning = true;
+
+            vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Window,
+                    title: "Stopping webpack-dev-server..."
+                },
+                () => {
+                    return new Promise(resolve => {
+                        devServerInstance.close(() => {
+                            devServerInstance = undefined;
+                            isTransitioning = false;
+                            statusBarItem.hide();
+                            outputChannel.appendLine("Stopped WDS.");
+                            resolve();
+                        });
+                    });
+                }
+            );
+        }
+    );
+
+    context.subscriptions.push(initCommand);
+    context.subscriptions.push(disposeCommand);
 }
 
 // this method is called when your extension is deactivated
