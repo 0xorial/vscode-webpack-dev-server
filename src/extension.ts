@@ -101,6 +101,8 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
+            process.chdir(rootPath);
+
             vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Window,
