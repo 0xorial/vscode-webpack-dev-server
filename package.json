@@ -3,6 +3,7 @@
 	"displayName": "webpack-dev-server",
 	"description": "webpack-dev-server integration",
 	"version": "0.0.1",
+	"publisher": "0xorial",
 	"engines": {
 		"vscode": "^1.31.0"
 	},

@@ -27,6 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
             const webpack = requireLocalPkg(rootPath, "webpack");
             const configPath = path.join(rootPath, configFileName);
             outputChannel.appendLine(`Opening file ${configPath}...`);
+            delete require.cache[configPath];
             const webpackConfig = require(configPath);
             const compiler = webpack(webpackConfig) as webpack.Compiler;
 
