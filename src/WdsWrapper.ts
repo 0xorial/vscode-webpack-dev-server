@@ -137,8 +137,18 @@ function makeDevServer(
     const webpack = requireLocalPkg(rootPath, "webpack");
     const configPath = path.join(rootPath, configFileName);
     reporter(`Opening file ${configPath}...`);
+
     delete require.cache[configPath];
     const webpackConfig = require(configPath);
+
+    const options = {
+        clientLogLevel: "info",
+        contentBase: "./static",
+        filename: "[name].js",
+        hot: true,
+        publicPath: "/"
+    };
+    devServer.addDevServerEntrypoints(webpackConfig, options);
     const compiler = webpack(webpackConfig) as webpack.Compiler;
 
     const treeView = new SimpleTreeDataProvider<TreeViewItem>();
@@ -183,7 +193,7 @@ function makeDevServer(
         }
     });
 
-    const server = new devServer(compiler) as DevServer;
+    const server = new devServer(compiler, options) as DevServer;
     return { server, configPath };
 }
 
@@ -203,6 +213,8 @@ function startWdsAsync(
         const { configFileName, host, port } = readConfiguration();
 
         try {
+            process.chdir(rootPath);
+
             const devServerInstance = makeDevServer(
                 rootPath,
                 configFileName,
