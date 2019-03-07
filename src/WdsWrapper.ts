@@ -197,54 +197,56 @@ function makeDevServer(
     return { server, configPath };
 }
 
-function startWdsAsync(
+function startWdsImpl(
     rootPath: string,
     outputChannel: vscode.OutputChannel,
-    treeView: TreeViewProxy
+    treeView: TreeViewProxy,
+    resolve: (wds: WdsWrapper) => void,
+    reject: (error: any) => void
 ) {
-    return new Promise<WdsWrapper>((resolve, reject) => {
-        outputChannel.show(true);
-        const statusBarItem = vscode.window.createStatusBarItem(
-            vscode.StatusBarAlignment.Left
+    outputChannel.show(true);
+    const statusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Left
+    );
+    statusBarItem.command = "vscode-wds.revealOutput";
+    statusBarItem.show();
+
+    const { configFileName, host, port } = readConfiguration();
+
+    try {
+        process.chdir(rootPath);
+
+        const devServerInstance = makeDevServer(
+            rootPath,
+            configFileName,
+            treeView,
+            (t, c) => {
+                outputChannel.appendLine(t);
+                statusBarItem.text = t;
+                if (c !== undefined) {
+                    statusBarItem.color = c;
+                }
+            }
         );
-        statusBarItem.command = "vscode-wds.revealOutput";
-        statusBarItem.show();
 
-        const { configFileName, host, port } = readConfiguration();
+        outputChannel.appendLine("about to listen...");
 
-        try {
-            process.chdir(rootPath);
-
-            const devServerInstance = makeDevServer(
-                rootPath,
-                configFileName,
-                treeView,
-                (t, c) => {
-                    outputChannel.appendLine(t);
-                    statusBarItem.text = t;
-                    if (c !== undefined) {
-                        statusBarItem.color = c;
+        devServerInstance.server.listen(port, host, (err: any) => {
+            if (err) {
+                outputChannel.appendLine("listen error!");
+                reject(err);
+                throw err;
+            }
+            outputChannel.appendLine("listening!");
+            let stoppingPromise: Promise<void> | undefined;
+            resolve({
+                configPath: () => devServerInstance.configPath,
+                stop: () => {
+                    if (stoppingPromise !== undefined) {
+                        return stoppingPromise;
                     }
-                }
-            );
-
-            outputChannel.appendLine("about to listen...");
-
-            devServerInstance.server.listen(port, host, (err: any) => {
-                if (err) {
-                    outputChannel.appendLine("listen error!");
-                    reject(err);
-                    throw err;
-                }
-                outputChannel.appendLine("listening!");
-                let stoppingPromise: Promise<void> | undefined;
-                resolve({
-                    configPath: () => devServerInstance.configPath,
-                    stop: () => {
-                        if (stoppingPromise !== undefined) {
-                            return stoppingPromise;
-                        }
-                        const result = new Promise<void>(resolve => {
+                    const result = new Promise<void>(resolve => {
+                        releaseThread(() => {
                             devServerInstance.server.close(() => {
                                 statusBarItem.hide();
                                 statusBarItem.dispose();
@@ -252,15 +254,34 @@ function startWdsAsync(
                                 resolve();
                             });
                         });
-                        stoppingPromise = result;
-                        return result;
-                    }
-                });
+                    });
+                    stoppingPromise = result;
+                    return result;
+                }
             });
-        } catch (e) {
-            outputChannel.appendLine(JSON.stringify(e));
-            reject(e);
-        }
+        });
+    } catch (e) {
+        outputChannel.appendLine(JSON.stringify(e));
+        reject(e);
+    }
+}
+
+function releaseThread(cb: () => void) {
+    setTimeout(() => {
+        cb();
+    }, 0);
+}
+
+function makeWdsStartingPromise(
+    rootPath: string,
+    outputChannel: vscode.OutputChannel,
+    treeView: TreeViewProxy
+) {
+    return new Promise<WdsWrapper>((resolve, reject) => {
+        // release main thread
+        releaseThread(() => {
+            startWdsImpl(rootPath, outputChannel, treeView, resolve, reject);
+        });
     });
 }
 
@@ -271,7 +292,11 @@ export function startWds(
     startedCb: (err: any) => void
 ): WdsWrapper {
     let stopPromise: Promise<void> | undefined;
-    const startingPromise = startWdsAsync(rootPath, outputChannel, treeView);
+    const startingPromise = makeWdsStartingPromise(
+        rootPath,
+        outputChannel,
+        treeView
+    );
     let wdsWrapper: WdsWrapper | undefined;
 
     startingPromise
