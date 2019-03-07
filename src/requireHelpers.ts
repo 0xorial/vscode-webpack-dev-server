@@ -2,7 +2,6 @@
 import * as path from 'path';
 import * as resolve from 'resolve';
 import { sync } from 'read-pkg-up';
-import { outputChannel } from './outputChannel';
 
 /**
  * Recursively search for a package.json upwards containing given package
@@ -41,7 +40,7 @@ export function requireLocalPkg(fspath: string, pkgName: string): any {
         try {
             return require(modulePath);
         } catch (e) {
-            outputChannel.appendLine(`Failed to load ${pkgName} from ${modulePath}. Using bundled`);
+            throw new Error(`Failed to load ${pkgName} from ${modulePath}. Using bundled. Error was: ` + e);
         }
     }
 

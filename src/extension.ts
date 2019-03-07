@@ -1,96 +1,22 @@
 import * as vscode from "vscode";
-import { requireLocalPkg } from "./requireHelpers";
-import * as path from "path";
-import { outputChannel } from "./outputChannel";
-import * as webpack from "webpack";
+import { WdsWrapper, startWds } from "./WdsWrapper";
 
 export function activate(context: vscode.ExtensionContext) {
-    let devServerInstance: any;
-    let isTransitioning = false;
-    let statusBarItem = vscode.window.createStatusBarItem(
-        vscode.StatusBarAlignment.Left
-    );
-    statusBarItem.command = "vscode-wds.revealOutput";
+    let wds: WdsWrapper | undefined;
 
-    function startWds(rootPath: string, cb: (err: Error | undefined) => void) {
-        outputChannel.show(true);
-        isTransitioning = true;
-
-        try {
-            const config = vscode.workspace.getConfiguration("vscode-wds");
-            const port = config.get<number>("port") || "8080";
-            const host = config.get<string>("host") || "localhost";
-            const configFileName =
-                config.get<string>("configFileName") || "webpack.config.js";
-
-            const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
-            const webpack = requireLocalPkg(rootPath, "webpack");
-            const configPath = path.join(rootPath, configFileName);
-            outputChannel.appendLine(`Opening file ${configPath}...`);
-            delete require.cache[configPath];
-            const webpackConfig = require(configPath);
-            const compiler = webpack(webpackConfig) as webpack.Compiler;
-
-            statusBarItem.show();
-
-            // let p;
-            compiler.hooks.watchRun.tap("vscode-wds", () => {
-                statusBarItem.text = `Compiling...`;
-                outputChannel.appendLine("Compiling...");
-            });
-
-            compiler.hooks.done.tap("vscode-wds", (stats: webpack.Stats) => {
-                const str = stats.toString();
-                outputChannel.appendLine(str);
-                if (stats.compilation.errors.length !== 0) {
-                    statusBarItem.text = `${
-                        stats.compilation.errors.length
-                    } errors`;
-                    statusBarItem.color = new vscode.ThemeColor(
-                        "errorForeground"
-                    );
-                } else {
-                    statusBarItem.text = `${
-                        stats.compilation.errors.length
-                    } errors`;
-                    statusBarItem.color = new vscode.ThemeColor("foreground");
-                }
-            });
-
-            devServerInstance = new devServer(compiler);
-            outputChannel.appendLine("about to listen...");
-
-            devServerInstance.listen(port, host, (err: any) => {
-                cb(err);
-                if (err) {
-                    outputChannel.appendLine("listen error!");
-                    throw err;
-                }
-                outputChannel.appendLine("listening!");
-                isTransitioning = false;
-            });
-        } catch (e) {
-            outputChannel.appendLine(JSON.stringify(e));
-            isTransitioning = false;
-            cb(e);
-        }
+    function autoDispose<T extends vscode.Disposable>(t: T) {
+        context.subscriptions.push(t);
+        return t;
     }
 
-    const initCommand = vscode.commands.registerCommand(
-        "vscode-wds.startDevServer",
-        () => {
-            if (isTransitioning) {
-                vscode.window.showInformationMessage(
-                    "Still doing something..."
-                );
-                outputChannel.show();
-                return;
-            }
+    const outputChannel = autoDispose(
+        vscode.window.createOutputChannel("Webpack")
+    );
 
-            if (devServerInstance) {
-                vscode.window.showInformationMessage("Already running");
-                outputChannel.show();
-                return;
+    autoDispose(
+        vscode.commands.registerCommand("vscode-wds.startDevServer", () => {
+            if (wds) {
+                vscode.window.showErrorMessage("Already running.");
             }
 
             const rootPath = vscode.workspace.rootPath;
@@ -101,8 +27,6 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            process.chdir(rootPath);
-
             vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Window,
@@ -110,7 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
                 },
                 () => {
                     return new Promise((resolve, reject) => {
-                        startWds(rootPath, err => {
+                        wds = startWds(rootPath, outputChannel, err => {
                             if (err) {
                                 vscode.window.showErrorMessage(
                                     "Could not start webpack-dev-server. See output window for details."
@@ -123,56 +47,34 @@ export function activate(context: vscode.ExtensionContext) {
                     });
                 }
             );
-        }
+        })
     );
 
-    const disposeCommand = vscode.commands.registerCommand(
-        "vscode-wds.stopDevServer",
-        () => {
-            if (isTransitioning) {
-                vscode.window.showInformationMessage(
-                    "Still doing something..."
-                );
-                outputChannel.show();
-                return;
-            }
-
-            if (!devServerInstance) {
+    autoDispose(
+        vscode.commands.registerCommand("vscode-wds.stopDevServer", () => {
+            if (!wds) {
                 vscode.window.showInformationMessage("Not running");
                 return;
             }
-            isTransitioning = true;
 
+            const localWds = wds;
             vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Window,
                     title: "Stopping webpack-dev-server..."
                 },
                 () => {
-                    return new Promise(resolve => {
-                        devServerInstance.close(() => {
-                            devServerInstance = undefined;
-                            isTransitioning = false;
-                            statusBarItem.hide();
-                            outputChannel.appendLine("Stopped WDS.");
-                            resolve();
-                        });
-                    });
+                    return localWds.stop();
                 }
             );
-        }
+        })
     );
 
-    const revealCommand = vscode.commands.registerCommand(
-        "vscode-wds.revealOutput",
-        () => {
+    autoDispose(
+        vscode.commands.registerCommand("vscode-wds.revealOutput", () => {
             outputChannel.show(true);
-        }
+        })
     );
-
-    context.subscriptions.push(initCommand);
-    context.subscriptions.push(disposeCommand);
-    context.subscriptions.push(revealCommand);
 }
 
 // this method is called when your extension is deactivated
