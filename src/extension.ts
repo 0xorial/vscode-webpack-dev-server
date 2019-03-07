@@ -94,6 +94,23 @@ export function activate(context: vscode.ExtensionContext) {
             outputChannel.show(true);
         })
     );
+
+    autoDispose(vscode.workspace.onDidSaveTextDocument(
+        e => {
+            if (wds && e.fileName === wds.configPath()) {
+                vscode.window.showInformationMessage(
+                    "Detected webpack config file change. Restarting WDS."
+                );
+                vscode.commands
+                    .executeCommand("vscode-wds.stopDevServer")
+                    .then(() => {
+                        vscode.commands.executeCommand(
+                            "vscode-wds.startDevServer"
+                        );
+                    });
+            }
+        }
+    ));
 }
 
 // this method is called when your extension is deactivated

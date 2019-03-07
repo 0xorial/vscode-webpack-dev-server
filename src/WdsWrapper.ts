@@ -11,6 +11,7 @@ export interface TreeViewProxy {
 }
 
 export interface WdsWrapper {
+    configPath: () => string | undefined;
     stop: () => Promise<void>;
 }
 
@@ -131,7 +132,7 @@ function makeDevServer(
     configFileName: string,
     treeViewProxy: TreeViewProxy,
     reporter: (text: string, color?: vscode.ThemeColor) => void
-): DevServer {
+): { server: DevServer; configPath: string } {
     const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
     const webpack = requireLocalPkg(rootPath, "webpack");
     const configPath = path.join(rootPath, configFileName);
@@ -182,7 +183,8 @@ function makeDevServer(
         }
     });
 
-    return new devServer(compiler);
+    const server = new devServer(compiler) as DevServer;
+    return { server, configPath };
 }
 
 function startWdsAsync(
@@ -216,7 +218,7 @@ function startWdsAsync(
 
             outputChannel.appendLine("about to listen...");
 
-            devServerInstance.listen(port, host, (err: any) => {
+            devServerInstance.server.listen(port, host, (err: any) => {
                 if (err) {
                     outputChannel.appendLine("listen error!");
                     reject(err);
@@ -225,12 +227,13 @@ function startWdsAsync(
                 outputChannel.appendLine("listening!");
                 let stoppingPromise: Promise<void> | undefined;
                 resolve({
+                    configPath: () => devServerInstance.configPath,
                     stop: () => {
                         if (stoppingPromise !== undefined) {
                             return stoppingPromise;
                         }
                         const result = new Promise<void>(resolve => {
-                            devServerInstance.close(() => {
+                            devServerInstance.server.close(() => {
                                 statusBarItem.hide();
                                 statusBarItem.dispose();
                                 outputChannel.appendLine("Stopped WDS.");
@@ -257,10 +260,17 @@ export function startWds(
 ): WdsWrapper {
     let stopPromise: Promise<void> | undefined;
     const startingPromise = startWdsAsync(rootPath, outputChannel, treeView);
+    let wdsWrapper: WdsWrapper | undefined;
 
-    startingPromise.then(() => startedCb(undefined)).catch(e => startedCb(e));
+    startingPromise
+        .then(wds => {
+            startedCb(undefined);
+            wdsWrapper = wds;
+        })
+        .catch(e => startedCb(e));
 
     return {
+        configPath: () => (wdsWrapper ? wdsWrapper.configPath() : undefined),
         stop: () => {
             if (stopPromise) {
                 return stopPromise;
