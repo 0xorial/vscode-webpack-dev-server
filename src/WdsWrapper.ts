@@ -129,10 +129,10 @@ function formatError(
 
 function makeDevServer(
     rootPath: string,
-    configFileName: string,
     treeViewProxy: TreeViewProxy,
     reporter: (text: string, color?: vscode.ThemeColor) => void
 ): { server: DevServer; configPath: string } {
+    const {configFileName, host, port } = readConfiguration();
     const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
     const webpack = requireLocalPkg(rootPath, "webpack");
     const configPath = path.join(rootPath, configFileName);
@@ -145,7 +145,10 @@ function makeDevServer(
         clientLogLevel: "info",
         contentBase: "./static",
         filename: "[name].js",
+        host,
         hot: true,
+        hotOnly: undefined,
+        port,
         publicPath: "/"
     };
     devServer.addDevServerEntrypoints(webpackConfig, options);
@@ -211,14 +214,13 @@ function startWdsImpl(
     statusBarItem.command = "vscode-wds.revealOutput";
     statusBarItem.show();
 
-    const { configFileName, host, port } = readConfiguration();
+    const { host, port } = readConfiguration();
 
     try {
         process.chdir(rootPath);
 
         const devServerInstance = makeDevServer(
             rootPath,
-            configFileName,
             treeView,
             (t, c) => {
                 outputChannel.appendLine(t);
