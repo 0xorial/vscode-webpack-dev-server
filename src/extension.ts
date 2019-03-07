@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
-import { WdsWrapper, startWds } from "./WdsWrapper";
+import { WdsWrapper, startWds, TreeViewItem } from "./WdsWrapper";
+import { TreeDataProviderProxy } from "./TreeDataProviderProxy";
+
+export const dummySubscription: vscode.Disposable = { dispose() {} };
 
 export function activate(context: vscode.ExtensionContext) {
     let wds: WdsWrapper | undefined;
@@ -11,6 +14,17 @@ export function activate(context: vscode.ExtensionContext) {
 
     const outputChannel = autoDispose(
         vscode.window.createOutputChannel("Webpack")
+    );
+
+    const dataProxy = new TreeDataProviderProxy<TreeViewItem>();
+
+    autoDispose(
+        vscode.window.registerTreeDataProvider("vscode-wds.errors", dataProxy)
+    );
+    autoDispose(
+        vscode.window.createTreeView<TreeViewItem>("vscode-wds.errors", {
+            treeDataProvider: dataProxy
+        })
     );
 
     autoDispose(
@@ -34,16 +48,21 @@ export function activate(context: vscode.ExtensionContext) {
                 },
                 () => {
                     return new Promise((resolve, reject) => {
-                        wds = startWds(rootPath, outputChannel, err => {
-                            if (err) {
-                                vscode.window.showErrorMessage(
-                                    "Could not start webpack-dev-server. See output window for details."
-                                );
-                                reject(err);
-                            } else {
-                                resolve();
+                        wds = startWds(
+                            rootPath,
+                            outputChannel,
+                            dataProxy,
+                            err => {
+                                if (err) {
+                                    vscode.window.showErrorMessage(
+                                        "Could not start webpack-dev-server. See output window for details."
+                                    );
+                                    reject(err);
+                                } else {
+                                    resolve();
+                                }
                             }
-                        });
+                        );
                     });
                 }
             );

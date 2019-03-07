@@ -49,7 +49,24 @@
 				"command": "vscode-wds.revealOutput",
 				"title": "Reveal output of webpack-dev-server"
 			}
-		]
+		],
+		"viewsContainers": {
+			"activitybar": [
+			  {
+				"id": "vscode-wds-errors-container",
+				"title": "WDS errors",
+				"icon": "media/dep.svg"
+			  }
+			]
+		  },
+		  "views": {
+			"vscode-wds-errors-container": [
+			  {
+				"id": "vscode-wds.errors",
+				"name": "Errors"
+			  }
+			]
+		  }
 	},
 	"scripts": {
 		"vscode:prepublish": "yarn run compile",

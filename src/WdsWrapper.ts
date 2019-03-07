@@ -3,6 +3,12 @@ import { readConfiguration } from "./ConfigurationHelper";
 import { requireLocalPkg } from "./requireHelpers";
 import * as path from "path";
 import * as webpack from "webpack";
+import { SimpleTreeDataProvider } from "./TreeDataProviderProxy";
+import { formatLocation } from "./formatLocation";
+
+export interface TreeViewProxy {
+    setTarget(t: vscode.TreeDataProvider<TreeViewItem> | undefined): void;
+}
 
 export interface WdsWrapper {
     stop: () => Promise<void>;
@@ -13,9 +19,117 @@ export interface DevServer {
     close(cb: () => void): void;
 }
 
+export interface TreeViewItem {
+    children: TreeViewItem[];
+    item: vscode.TreeItem;
+}
+
+function formatFilePath(filePath: string) {
+    const OPTIONS_REGEXP = /^(\s|\S)*!/;
+    return filePath.includes("!")
+        ? `${filePath.replace(OPTIONS_REGEXP, "")} (${filePath})`
+        : `${filePath}`;
+}
+
+function extractErorrInfo(e: any): { file: string; message: string } {
+    let file;
+    let message;
+    if (typeof e.file === "string") {
+        file = e.file;
+    } else {
+        file = "unknonw";
+    }
+
+    if (typeof e.rawMessage === "string") {
+        message = e.rawMessage;
+    } else {
+        message = "unknown";
+    }
+
+    return { file, message };
+}
+
+function formatError(
+    e: any,
+    requestShortener: any,
+    showErrorDetails = true,
+    showModuleTrace = true
+) {
+    let text = "";
+    if (typeof e === "string") {
+        e = { message: e };
+    }
+    if (e.chunk) {
+        text += `chunk ${e.chunk.name || e.chunk.id}${
+            e.chunk.hasRuntime()
+                ? " [entry]"
+                : e.chunk.canBeInitial()
+                ? " [initial]"
+                : ""
+        }\n`;
+    }
+    if (e.file) {
+        text += `${e.file}\n`;
+    }
+    if (
+        e.module &&
+        e.module.readableIdentifier &&
+        typeof e.module.readableIdentifier === "function"
+    ) {
+        text += formatFilePath(e.module.readableIdentifier(requestShortener));
+        if (typeof e.loc === "object") {
+            const locInfo = formatLocation(e.loc);
+            if (locInfo) {
+                text += ` ${locInfo}`;
+            }
+        }
+        text += "\n";
+    }
+    text += e.message;
+    if (showErrorDetails && e.details) {
+        text += `\n${e.details}`;
+    }
+    if (showErrorDetails && e.missing) {
+        text += e.missing.map((item: any) => `\n[${item}]`).join("");
+    }
+    if (showModuleTrace && e.origin) {
+        text += `\n @ ${formatFilePath(
+            e.origin.readableIdentifier(requestShortener)
+        )}`;
+        if (typeof e.originLoc === "object") {
+            const locInfo = formatLocation(e.originLoc);
+            if (locInfo) {
+                text += ` ${locInfo}`;
+            }
+        }
+        if (e.dependencies) {
+            for (const dep of e.dependencies) {
+                if (!dep.loc) {
+                    continue;
+                }
+                if (typeof dep.loc === "string") {
+                    continue;
+                }
+                const locInfo = formatLocation(dep.loc);
+                if (!locInfo) {
+                    continue;
+                }
+                text += ` ${locInfo}`;
+            }
+        }
+        let current = e.origin;
+        while (current.issuer) {
+            current = current.issuer;
+            text += `\n @ ${current.readableIdentifier(requestShortener)}`;
+        }
+    }
+    return text;
+}
+
 function makeDevServer(
     rootPath: string,
     configFileName: string,
+    treeViewProxy: TreeViewProxy,
     reporter: (text: string, color?: vscode.ThemeColor) => void
 ): DevServer {
     const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
@@ -26,13 +140,35 @@ function makeDevServer(
     const webpackConfig = require(configPath);
     const compiler = webpack(webpackConfig) as webpack.Compiler;
 
+    const treeView = new SimpleTreeDataProvider<TreeViewItem>();
+    treeViewProxy.setTarget(treeView);
+
     compiler.hooks.watchRun.tap("vscode-wds", () => {
         reporter("Compiling...");
+        treeView.clear();
+        treeView.fireChange(null);
     });
 
     compiler.hooks.done.tap("vscode-wds", (stats: webpack.Stats) => {
         const str = stats.toString();
         reporter(str);
+
+        const errorInfos = stats.compilation.errors.map(e =>
+            extractErorrInfo(e)
+        );
+        for (const e of errorInfos) {
+            treeView.addItem({
+                item: {
+                    label: e.file,
+                    description: e.message,
+                    tooltip: e.message
+                },
+                children: []
+            });
+        }
+
+        treeView.fireChange(null);
+
         if (stats.compilation.errors.length !== 0) {
             reporter(
                 `${stats.compilation.errors.length} errors`,
@@ -49,7 +185,11 @@ function makeDevServer(
     return new devServer(compiler);
 }
 
-function startWdsAsync(rootPath: string, outputChannel: vscode.OutputChannel) {
+function startWdsAsync(
+    rootPath: string,
+    outputChannel: vscode.OutputChannel,
+    treeView: TreeViewProxy
+) {
     return new Promise<WdsWrapper>((resolve, reject) => {
         outputChannel.show(true);
         const statusBarItem = vscode.window.createStatusBarItem(
@@ -64,6 +204,7 @@ function startWdsAsync(rootPath: string, outputChannel: vscode.OutputChannel) {
             const devServerInstance = makeDevServer(
                 rootPath,
                 configFileName,
+                treeView,
                 (t, c) => {
                     outputChannel.appendLine(t);
                     statusBarItem.text = t;
@@ -111,10 +252,11 @@ function startWdsAsync(rootPath: string, outputChannel: vscode.OutputChannel) {
 export function startWds(
     rootPath: string,
     outputChannel: vscode.OutputChannel,
+    treeView: TreeViewProxy,
     startedCb: (err: any) => void
 ): WdsWrapper {
     let stopPromise: Promise<void> | undefined;
-    const startingPromise = startWdsAsync(rootPath, outputChannel);
+    const startingPromise = startWdsAsync(rootPath, outputChannel, treeView);
 
     startingPromise.then(() => startedCb(undefined)).catch(e => startedCb(e));
 
