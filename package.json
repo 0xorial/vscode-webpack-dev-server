@@ -1,90 +1,90 @@
 {
-	"name": "webpack-dev-server",
-	"displayName": "webpack-dev-server",
-	"description": "webpack-dev-server integration",
-	"version": "0.0.1",
-	"publisher": "0xorial",
-	"engines": {
-		"vscode": "^1.31.0"
-	},
-	"categories": [
-		"Other"
-	],
-	"activationEvents": [
-		"onCommand:vscode-wds.startDevServer"
-	],
-	"main": "./out/extension.js",
-	"contributes": {
-		"configuration": {
-			"type": "object",
-			"title": "Webpack-dev-server configuration",
-			"properties": {
-				"vscode-wds.port": {
-					"type": "number",
-					"default": 8080,
-					"description": "Port to pass to webpack-dev-server."
-				},
-				"vscode-wds.host": {
-					"type": "string",
-					"default": "localhost",
-					"description": "Host to pass to dev-server"
-				},
-				"vscode-wds.configFileName": {
-					"type": "string",
-					"default": "webpack.config.js",
-					"description": "Webpack config file to use."
-				}
-			}
-		},
-		"commands": [
-			{
-				"command": "vscode-wds.startDevServer",
-				"title": "Start webpack-dev-server"
-			},
-			{
-				"command": "vscode-wds.stopDevServer",
-				"title": "Stop webpack-dev-server"
-			},
-			{
-				"command": "vscode-wds.revealOutput",
-				"title": "Reveal output of webpack-dev-server"
-			}
-		],
-		"viewsContainers": {
-			"activitybar": [
-			  {
-				"id": "vscode-wds-errors-container",
-				"title": "WDS errors",
-				"icon": "media/dep.svg"
-			  }
-			]
-		  },
-		  "views": {
-			"vscode-wds-errors-container": [
-			  {
-				"id": "vscode-wds.errors",
-				"name": "Errors"
-			  }
-			]
-		  }
-	},
-	"scripts": {
-		"vscode:prepublish": "yarn run compile",
-		"compile": "tsc -p ./",
-		"watch": "tsc -watch -p ./",
-		"postinstall": "node ./node_modules/vscode/bin/install",
-		"test": "yarn run compile && node ./node_modules/vscode/bin/test"
-	},
-	"devDependencies": {
-		"@types/mocha": "^2.2.42",
-		"@types/node": "^10.12.21",
-		"@types/read-pkg-up": "^3.0.1",
-		"@types/resolve": "0.0.8",
-		"@types/webpack": "^4.4.25",
-		"read-pkg-up": "^4.0.0",
-		"tslint": "^5.12.1",
-		"typescript": "^3.3.1",
-		"vscode": "^1.1.28"
-	},
-	"dependencies": {}
+  "name": "webpack-dev-server",
+  "displayName": "webpack-dev-server",
+  "description": "webpack-dev-server integration",
+  "version": "0.0.1",
+  "publisher": "0xorial",
+  "engines": {
+    "vscode": "^1.31.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:vscode-wds.startDevServer"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Webpack-dev-server configuration",
+      "properties": {
+        "vscode-wds.port": {
+          "type": "number",
+          "default": 8080,
+          "description": "Port to pass to webpack-dev-server."
+        },
+        "vscode-wds.host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Host to pass to dev-server"
+        },
+        "vscode-wds.configFileName": {
+          "type": "string",
+          "default": "webpack.config.js",
+          "description": "Webpack config file to use."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "vscode-wds.startDevServer",
+        "title": "Start webpack-dev-server"
+      },
+      {
+        "command": "vscode-wds.stopDevServer",
+        "title": "Stop webpack-dev-server"
+      },
+      {
+        "command": "vscode-wds.revealOutput",
+        "title": "Reveal output of webpack-dev-server"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vscode-wds-errors-container",
+          "title": "WDS errors",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "vscode-wds-errors-container": [
+        {
+          "id": "vscode-wds.errors",
+          "name": "Errors"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "yarn run compile && node ./node_modules/vscode/bin/test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^2.2.42",
+    "@types/node": "^10.12.21",
+    "@types/read-pkg-up": "^3.0.1",
+    "@types/resolve": "0.0.8",
+    "@types/webpack": "^4.4.25",
+    "read-pkg-up": "^4.0.0",
+    "tslint": "^5.12.1",
+    "typescript": "^3.3.1",
+    "vscode": "^1.1.28"
+  },
+  "dependencies": {}
 }
