@@ -4,7 +4,6 @@ import { requireLocalPkg } from "./requireHelpers";
 import * as path from "path";
 import * as webpack from "webpack";
 import { SimpleTreeDataProvider } from "./TreeDataProviderProxy";
-import { formatLocation } from "./formatLocation";
 
 export interface TreeViewProxy {
     setTarget(t: vscode.TreeDataProvider<TreeViewItem> | undefined): void;
@@ -21,7 +20,7 @@ export interface DevServer {
 }
 
 export interface TreeViewItem {
-    children: TreeViewItem[];
+    children?: TreeViewItem[] | undefined;
     item: vscode.TreeItem;
 }
 
@@ -32,99 +31,60 @@ function formatFilePath(filePath: string) {
         : `${filePath}`;
 }
 
-function extractErorrInfo(e: any): { file: string; message: string } {
-    let file;
-    let message;
+type ErrorInfo = {
+    file: string;
+    line?: number;
+    character?: number;
+    message: string;
+};
+
+function extractErrorInfo(e: any, requestShortener: any): ErrorInfo {
+    let file = "unknown";
+    let message = "unknown";
+    let line;
+    let character;
+
+    // 'fork-ts-checker' format
+
     if (typeof e.file === "string") {
         file = e.file;
-    } else {
-        file = "unknonw";
     }
 
     if (typeof e.rawMessage === "string") {
         message = e.rawMessage;
-    } else {
-        message = "unknown";
     }
 
-    return { file, message };
-}
+    if (typeof e.location === "object") {
+        line = e.location.line;
+        character = e.location.character;
+    }
 
-function formatError(
-    e: any,
-    requestShortener: any,
-    showErrorDetails = true,
-    showModuleTrace = true
-) {
-    let text = "";
-    if (typeof e === "string") {
-        e = { message: e };
+    // 'webpack.ModuleBuildError' format
+
+    if (typeof e.error === "object" && typeof e.error.loc === "object") {
+        line = e.error.loc.line;
+        character = e.error.loc.column;
+        message = e.error.message;
     }
-    if (e.chunk) {
-        text += `chunk ${e.chunk.name || e.chunk.id}${
-            e.chunk.hasRuntime()
-                ? " [entry]"
-                : e.chunk.canBeInitial()
-                ? " [initial]"
-                : ""
-        }\n`;
-    }
-    if (e.file) {
-        text += `${e.file}\n`;
-    }
-    if (
-        e.module &&
-        e.module.readableIdentifier &&
-        typeof e.module.readableIdentifier === "function"
-    ) {
-        text += formatFilePath(e.module.readableIdentifier(requestShortener));
-        if (typeof e.loc === "object") {
-            const locInfo = formatLocation(e.loc);
-            if (locInfo) {
-                text += ` ${locInfo}`;
-            }
-        }
-        text += "\n";
-    }
-    text += e.message;
-    if (showErrorDetails && e.details) {
-        text += `\n${e.details}`;
-    }
-    if (showErrorDetails && e.missing) {
-        text += e.missing.map((item: any) => `\n[${item}]`).join("");
-    }
-    if (showModuleTrace && e.origin) {
-        text += `\n @ ${formatFilePath(
-            e.origin.readableIdentifier(requestShortener)
-        )}`;
-        if (typeof e.originLoc === "object") {
-            const locInfo = formatLocation(e.originLoc);
-            if (locInfo) {
-                text += ` ${locInfo}`;
-            }
-        }
-        if (e.dependencies) {
-            for (const dep of e.dependencies) {
-                if (!dep.loc) {
-                    continue;
-                }
-                if (typeof dep.loc === "string") {
-                    continue;
-                }
-                const locInfo = formatLocation(dep.loc);
-                if (!locInfo) {
-                    continue;
-                }
-                text += ` ${locInfo}`;
-            }
-        }
-        let current = e.origin;
-        while (current.issuer) {
-            current = current.issuer;
-            text += `\n @ ${current.readableIdentifier(requestShortener)}`;
+
+    if (e.module) {
+        file = e.module.resource;
+        if (
+            typeof file === "string" &&
+            typeof message === "string" &&
+            message.startsWith(file)
+        ) {
+            message = message.substring(file.length);
         }
     }
-    return text;
+
+    if (line !== undefined) {
+        line--;
+    }
+    if (character !== undefined) {
+        character--;
+    }
+    return { file, message, line, character };
 }
 
 function makeDevServer(
@@ -132,7 +92,7 @@ function makeDevServer(
     treeViewProxy: TreeViewProxy,
     reporter: (text: string, color?: vscode.ThemeColor) => void
 ): { server: DevServer; configPath: string } {
-    const {configFileName, host, port } = readConfiguration();
+    const { configFileName, host, port } = readConfiguration();
     const devServer = requireLocalPkg(rootPath, "webpack-dev-server");
     const webpack = requireLocalPkg(rootPath, "webpack");
     const configPath = path.join(rootPath, configFileName);
@@ -167,17 +127,53 @@ function makeDevServer(
         const str = stats.toString();
         reporter(str);
 
-        const errorInfos = stats.compilation.errors.map(e =>
-            extractErorrInfo(e)
+        const errorInfos = stats.compilation.errors.map(x =>
+            extractErrorInfo(x, stats.compilation.requestShortener)
         );
+        const map = new Map<string, ErrorInfo[]>();
+
         for (const e of errorInfos) {
+            let errors = map.get(e.file);
+            if (errors === undefined) {
+                errors = [];
+                map.set(e.file, errors);
+            }
+            errors.push(e);
+        }
+
+        for (const e of Array.from(map)) {
+            const [key, value] = e;
             treeView.addItem({
                 item: {
-                    label: e.file,
-                    description: e.message,
-                    tooltip: e.message
+                    label: path.basename(key),
+                    tooltip: key,
+                    collapsibleState: vscode.TreeItemCollapsibleState.Expanded
                 },
-                children: []
+                children: value.map(m => {
+                    const options: vscode.TextDocumentShowOptions | undefined =
+                        m.line !== undefined
+                            ? {
+                                  selection: new vscode.Range(
+                                      m.line,
+                                      m.character || 0,
+                                      m.line,
+                                      m.character || 0
+                                  )
+                              }
+                            : undefined;
+                    return {
+                        item: {
+                            label: `(${m.line}, ${m.character}):`,
+                            description: m.message,
+                            tooltip: m.message,
+                            command: {
+                                title: "open",
+                                command: "vscode.open",
+                                arguments: [vscode.Uri.file(m.file), options]
+                            }
+                        }
+                    };
+                })
             });
         }
 
@@ -207,29 +203,24 @@ function startWdsImpl(
     resolve: (wds: WdsWrapper) => void,
     reject: (error: any) => void
 ) {
-    outputChannel.show(true);
     const statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left
     );
-    statusBarItem.command = "vscode-wds.revealOutput";
     statusBarItem.show();
+    statusBarItem.command = "vscode-wds.revealOutput";
 
     const { host, port } = readConfiguration();
 
     try {
         process.chdir(rootPath);
 
-        const devServerInstance = makeDevServer(
-            rootPath,
-            treeView,
-            (t, c) => {
-                outputChannel.appendLine(t);
-                statusBarItem.text = t;
-                if (c !== undefined) {
-                    statusBarItem.color = c;
-                }
+        const devServerInstance = makeDevServer(rootPath, treeView, (t, c) => {
+            outputChannel.appendLine(t);
+            statusBarItem.text = t;
+            if (c !== undefined) {
+                statusBarItem.color = c;
             }
-        );
+        });
 
         outputChannel.appendLine("about to listen...");
 
@@ -253,6 +244,7 @@ function startWdsImpl(
                                 statusBarItem.hide();
                                 statusBarItem.dispose();
                                 outputChannel.appendLine("Stopped WDS.");
+                                statusBarItem.dispose();
                                 resolve();
                             });
                         });
@@ -280,7 +272,6 @@ function makeWdsStartingPromise(
     treeView: TreeViewProxy
 ) {
     return new Promise<WdsWrapper>((resolve, reject) => {
-        // release main thread
         releaseThread(() => {
             startWdsImpl(rootPath, outputChannel, treeView, resolve, reject);
         });

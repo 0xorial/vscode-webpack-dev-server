@@ -12,6 +12,8 @@ export function activate(context: vscode.ExtensionContext) {
         return t;
     }
 
+    
+
     const outputChannel = autoDispose(
         vscode.window.createOutputChannel("Webpack")
     );

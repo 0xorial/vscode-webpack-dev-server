@@ -64,7 +64,7 @@ export class TreeDataProviderProxy<T> implements vscode.TreeDataProvider<T> {
 
 export interface WithChildrenAndItem<T> {
     item: vscode.TreeItem;
-    children: T[];
+    children?: T[];
 }
 
 export class SimpleTreeDataProvider<T extends WithChildrenAndItem<T>>
