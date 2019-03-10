@@ -2,8 +2,9 @@
   "name": "webpack-dev-server",
   "displayName": "webpack-dev-server",
   "description": "webpack-dev-server integration",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "0xorial",
+  "repository": "https://github.com/0xorial/vscode-webpack-dev-server",
   "engines": {
     "vscode": "^1.31.0"
   },
