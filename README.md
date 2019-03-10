@@ -7,7 +7,7 @@ This plugins provides an integration of webpack-dev-server, which is a bit more 
  - clearly shows when compilation is in progress
  - provides a separate view of errors detected by webpack compilation
 
-\!\[feature X\]\(meida/demo.gif\)
+![](media/demo.gif)
 
 ### 1.0.0
 
