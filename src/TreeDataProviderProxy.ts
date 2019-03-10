@@ -9,6 +9,7 @@ export class TreeDataProviderProxy<T> implements vscode.TreeDataProvider<T> {
         listener: (e: T | null | undefined) => any;
         thisArgs?: any;
     }>();
+
     public setTarget(t: vscode.TreeDataProvider<T> | undefined) {
         if (this.target) {
             this.targetSubscriptions.dispose();
@@ -22,9 +23,11 @@ export class TreeDataProviderProxy<T> implements vscode.TreeDataProvider<T> {
         }
         this.fireChange(null);
     }
+
     private fireChange = (e: T | null | undefined) => {
         this.changeSubscriptions.forEach(i => i.listener.call(i.thisArgs, e));
-    };
+    }
+
     public onDidChangeTreeData = (
         listener: (e: T | null | undefined) => any,
         thisArgs?: any,
@@ -55,68 +58,17 @@ export class TreeDataProviderProxy<T> implements vscode.TreeDataProvider<T> {
     }
     public getChildren(element?: T | undefined): vscode.ProviderResult<T[]> {
         if (this.target === undefined) {
-            [];
+            return undefined;
         } else {
             return this.target.getChildren(element);
         }
     }
-}
 
-export interface WithChildrenAndItem<T> {
-    item: vscode.TreeItem;
-    children?: T[];
-}
-
-export class SimpleTreeDataProvider<T extends WithChildrenAndItem<T>>
-    implements vscode.TreeDataProvider<T> {
-    private changeSubscriptions = new LinkedList<{
-        listener: (e: T | null | undefined) => any;
-        thisArgs?: any;
-    }>();
-    private items:T[] = [];
-
-    public fireChange(e: T | null | undefined) {
-        this.changeSubscriptions.forEach(i => i.listener.call(i.thisArgs, e));
-    };
-
-    public onDidChangeTreeData = (
-        listener: (e: T | null | undefined) => any,
-        thisArgs?: any,
-        disposables?: vscode.Disposable[]
-    ): vscode.Disposable => {
-        const node = this.changeSubscriptions.add({
-            listener,
-            thisArgs
-        });
-        const result = {
-            dispose: () => {
-                node.detachSelf();
-            }
-        };
-        if (disposables) {
-            disposables.push(result);
+    public getParent?(element: T): vscode.ProviderResult<T> {
+        if (this.target !== undefined && this.target.getParent) {
+            return this.target.getParent(element);
+        } else {
+            return undefined;
         }
-        return result;
-    }
-    public getTreeItem(
-        element: T
-    ): vscode.TreeItem | Thenable<vscode.TreeItem> {
-        return element.item;
-    }
-
-    public getChildren(element?: T | undefined): vscode.ProviderResult<T[]> {
-        if (!element) {
-            return this.items;
-        }
-
-        return element.children;
-    }
-
-    public addItem(item: T){
-        this.items.push(item);
-    }
-
-    public clear() {
-        this.items.splice(0, this.items.length);
     }
 }

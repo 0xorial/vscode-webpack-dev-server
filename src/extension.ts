@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { WdsWrapper, startWds, TreeViewItem } from "./WdsWrapper";
 import { TreeDataProviderProxy } from "./TreeDataProviderProxy";
+import { asThenable } from "./async";
 
 export const dummySubscription: vscode.Disposable = { dispose() {} };
 
@@ -12,8 +13,6 @@ export function activate(context: vscode.ExtensionContext) {
         return t;
     }
 
-    
-
     const outputChannel = autoDispose(
         vscode.window.createOutputChannel("Webpack")
     );
@@ -23,7 +22,8 @@ export function activate(context: vscode.ExtensionContext) {
     autoDispose(
         vscode.window.registerTreeDataProvider("vscode-wds.errors", dataProxy)
     );
-    autoDispose(
+
+    const treeView = autoDispose(
         vscode.window.createTreeView<TreeViewItem>("vscode-wds.errors", {
             treeDataProvider: dataProxy
         })
@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            vscode.window.withProgress(
+            return vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Window,
                     title: "Starting webpack-dev-server..."
@@ -79,13 +79,13 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const localWds = wds;
-            vscode.window.withProgress(
+            return vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Window,
                     title: "Stopping webpack-dev-server..."
                 },
                 () => {
-                    return localWds.stop();
+                    return localWds.stop().then(() => (wds = undefined));
                 }
             );
         })
@@ -93,12 +93,16 @@ export function activate(context: vscode.ExtensionContext) {
 
     autoDispose(
         vscode.commands.registerCommand("vscode-wds.revealOutput", () => {
-            outputChannel.show(true);
+            asThenable(dataProxy.getChildren(undefined)).then(items => {
+                if (items && items.length > 0) {
+                    treeView.reveal(items[0]);
+                }
+            });
         })
     );
 
-    autoDispose(vscode.workspace.onDidSaveTextDocument(
-        e => {
+    autoDispose(
+        vscode.workspace.onDidSaveTextDocument(e => {
             if (wds && e.fileName === wds.configPath()) {
                 vscode.window.showInformationMessage(
                     "Detected webpack config file change. Restarting WDS."
@@ -111,8 +115,8 @@ export function activate(context: vscode.ExtensionContext) {
                         );
                     });
             }
-        }
-    ));
+        })
+    );
 }
 
 // this method is called when your extension is deactivated

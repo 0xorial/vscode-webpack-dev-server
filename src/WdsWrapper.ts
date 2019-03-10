@@ -3,7 +3,7 @@ import { readConfiguration } from "./ConfigurationHelper";
 import { requireLocalPkg } from "./requireHelpers";
 import * as path from "path";
 import * as webpack from "webpack";
-import { SimpleTreeDataProvider } from "./TreeDataProviderProxy";
+import { SimpleTreeDataProvider } from "./SimpleTreeDataProvider";
 
 export interface TreeViewProxy {
     setTarget(t: vscode.TreeDataProvider<TreeViewItem> | undefined): void;
@@ -143,38 +143,41 @@ function makeDevServer(
 
         for (const e of Array.from(map)) {
             const [key, value] = e;
-            treeView.addItem({
+            const item: TreeViewItem = {
                 item: {
                     label: path.basename(key),
                     tooltip: key,
                     collapsibleState: vscode.TreeItemCollapsibleState.Expanded
-                },
-                children: value.map(m => {
-                    const options: vscode.TextDocumentShowOptions | undefined =
-                        m.line !== undefined
-                            ? {
-                                  selection: new vscode.Range(
-                                      m.line,
-                                      m.character || 0,
-                                      m.line,
-                                      m.character || 0
-                                  )
-                              }
-                            : undefined;
-                    return {
-                        item: {
-                            label: `(${m.line}, ${m.character}):`,
-                            description: m.message,
-                            tooltip: m.message,
-                            command: {
-                                title: "open",
-                                command: "vscode.open",
-                                arguments: [vscode.Uri.file(m.file), options]
-                            }
+                }
+            };
+            const children = value.map(m => {
+                const options: vscode.TextDocumentShowOptions | undefined =
+                    m.line !== undefined
+                        ? {
+                              selection: new vscode.Range(
+                                  m.line,
+                                  m.character || 0,
+                                  m.line,
+                                  m.character || 0
+                              )
+                          }
+                        : undefined;
+                return {
+                    item: {
+                        label: `(${m.line}, ${m.character}):`,
+                        description: m.message,
+                        tooltip: m.message,
+                        command: {
+                            title: "open",
+                            command: "vscode.open",
+                            arguments: [vscode.Uri.file(m.file), options]
                         }
-                    };
-                })
+                    },
+                    parent: item
+                };
             });
+            item.children = children;
+            treeView.addItem(item);
         }
 
         treeView.fireChange(null);
