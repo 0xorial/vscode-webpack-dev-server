@@ -2,7 +2,7 @@
   "name": "webpack-dev-server",
   "displayName": "webpack-dev-server",
   "description": "webpack-dev-server integration",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "0xorial",
   "repository": "https://github.com/0xorial/vscode-webpack-dev-server",
   "engines": {
@@ -82,10 +82,12 @@
     "@types/read-pkg-up": "^3.0.1",
     "@types/resolve": "0.0.8",
     "@types/webpack": "^4.4.25",
-    "read-pkg-up": "^4.0.0",
     "tslint": "^5.12.1",
     "typescript": "^3.3.1",
     "vscode": "^1.1.28"
   },
-  "dependencies": {}
+  "dependencies": {
+    "read-pkg-up": "^4.0.0",
+    "resolve": "^1.10.0"
+  }
 }
